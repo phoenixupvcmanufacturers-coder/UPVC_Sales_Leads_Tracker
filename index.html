@@ -1,0 +1,215 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phoenix uPVC Leads</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    .card { border: 1px solid #ddd; padding: 12px; border-radius: 10px; margin-bottom: 16px; }
+    input, select, textarea, button { width: 100%; padding: 10px; margin: 6px 0; box-sizing: border-box; }
+    button { cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; }
+  </style>
+</head>
+<body>
+
+<h2>Phoenix uPVC – Leads Web App</h2>
+
+<div class="card">
+  <h3>Settings</h3>
+  <input id="apiUrl" placeholder="Paste Apps Script Web App URL" />
+  <input id="apiKey" placeholder="API Key (same as Code.gs API_KEY)" />
+  <button onclick="saveSettings()">Save Settings</button>
+</div>
+
+<div class="card">
+  <h3>Create Lead</h3>
+  <input id="customerName" placeholder="Customer Name *" />
+  <input id="mobile" placeholder="Mobile Number" />
+  <input id="email" placeholder="Email" />
+  <input id="address" placeholder="Address / Site Location" />
+  <select id="productType">
+    <option value="">Product Type</option>
+    <option>Window</option><option>Door</option><option>Both</option>
+  </select>
+  <select id="designType">
+    <option value="">UPVC Design Type</option>
+    <option>Sliding</option><option>Casement</option><option>Fixed</option>
+    <option>Tilt & Turn</option><option>Sliding-Folding</option><option>Ventilator</option><option>Other</option>
+  </select>
+  <input id="leadSource" placeholder="Lead Source (Walk-in/Online/Reference...)" />
+  <input id="salesperson" placeholder="Salesperson Name" />
+  <select id="status">
+    <option>New</option><option>Visited</option><option>Follow-up</option>
+    <option>Measurement Done</option><option>Quotation Shared</option><option>Negotiation</option>
+    <option>On Hold</option><option>Won</option><option>Lost</option>
+  </select>
+  <input id="probability" placeholder="Probability (%)" type="number" />
+  <textarea id="remarks" placeholder="Remarks"></textarea>
+  <button onclick="createLead()">Create Lead</button>
+  <div id="createLeadMsg"></div>
+</div>
+
+<div class="card">
+  <h3>Log Visit / Call</h3>
+  <input id="leadId" placeholder="Lead ID (example LD-0001) *" />
+  <input id="visitDate" type="date" />
+  <select id="interactionType">
+    <option>Visit</option><option>Call</option><option>WhatsApp</option><option>Email</option><option>Measurement</option><option>Other</option>
+  </select>
+  <textarea id="notes" placeholder="Purpose / Notes"></textarea>
+  <input id="nextFollowUpDate" type="date" />
+  <select id="statusAfter">
+    <option value="">Status After Interaction</option>
+    <option>Visited</option><option>Follow-up</option><option>Measurement Done</option>
+    <option>Quotation Shared</option><option>Negotiation</option><option>On Hold</option><option>Won</option><option>Lost</option>
+  </select>
+  <select id="quoteShared">
+    <option value="">Quotation Shared?</option>
+    <option>Yes</option><option>No</option>
+  </select>
+  <input id="quotedAmount" placeholder="Quoted Amount" type="number" />
+  <input id="visitSalesperson" placeholder="Salesperson Name" />
+  <button onclick="logVisit()">Log Visit</button>
+  <div id="logVisitMsg"></div>
+</div>
+
+<div class="card">
+  <h3>Leads</h3>
+  <button onclick="loadLeads()">Refresh Leads</button>
+  <div style="overflow:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Lead ID</th><th>Name</th><th>Mobile</th><th>Status</th><th>Next Follow-up</th>
+        </tr>
+      </thead>
+      <tbody id="leadsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function saveSettings() {
+  localStorage.setItem("API_URL", document.getElementById("apiUrl").value.trim());
+  localStorage.setItem("API_KEY", document.getElementById("apiKey").value.trim());
+  alert("Saved!");
+}
+
+function getSettings() {
+  return {
+    url: localStorage.getItem("API_URL") || "",
+    key: localStorage.getItem("API_KEY") || ""
+  };
+}
+
+function init() {
+  const s = getSettings();
+  document.getElementById("apiUrl").value = s.url;
+  document.getElementById("apiKey").value = s.key;
+}
+init();
+
+async function apiGet(action, params = {}) {
+  const s = getSettings();
+  const url = new URL(s.url);
+  url.searchParams.set("action", action);
+  url.searchParams.set("key", s.key);
+  Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+  const res = await fetch(url.toString());
+  return res.json();
+}
+
+async function apiPost(action, body) {
+  const s = getSettings();
+  const url = new URL(s.url);
+  url.searchParams.set("action", action);
+  url.searchParams.set("key", s.key);
+
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+async function createLead() {
+  const msg = document.getElementById("createLeadMsg");
+  msg.textContent = "";
+
+  const body = {
+    customerName: document.getElementById("customerName").value,
+    mobile: document.getElementById("mobile").value,
+    email: document.getElementById("email").value,
+    address: document.getElementById("address").value,
+    productType: document.getElementById("productType").value,
+    designType: document.getElementById("designType").value,
+    leadSource: document.getElementById("leadSource").value,
+    salesperson: document.getElementById("salesperson").value,
+    status: document.getElementById("status").value,
+    probability: document.getElementById("probability").value,
+    remarks: document.getElementById("remarks").value
+  };
+
+  const r = await apiPost("createLead", body);
+  msg.textContent = r.ok ? `Created! Lead ID: ${r.leadId}` : `Error: ${r.error || "unknown"}`;
+  if (r.ok) loadLeads();
+}
+
+async function logVisit() {
+  const msg = document.getElementById("logVisitMsg");
+  msg.textContent = "";
+
+  const body = {
+    leadId: document.getElementById("leadId").value,
+    visitDate: document.getElementById("visitDate").value,
+    interactionType: document.getElementById("interactionType").value,
+    notes: document.getElementById("notes").value,
+    nextFollowUpDate: document.getElementById("nextFollowUpDate").value,
+    statusAfter: document.getElementById("statusAfter").value,
+    quoteShared: document.getElementById("quoteShared").value,
+    quotedAmount: document.getElementById("quotedAmount").value,
+    salesperson: document.getElementById("visitSalesperson").value
+  };
+
+  const r = await apiPost("logVisit", body);
+  msg.textContent = r.ok ? `Logged! Entry ID: ${r.entryId}` : `Error: ${r.error || "unknown"}`;
+  if (r.ok) loadLeads();
+}
+
+async function loadLeads() {
+  const tb = document.getElementById("leadsBody");
+  tb.innerHTML = "<tr><td colspan='5'>Loading...</td></tr>";
+
+  const r = await apiGet("listLeads");
+  if (!r.ok) {
+    tb.innerHTML = `<tr><td colspan='5'>Error: ${r.error || "unknown"}</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = "";
+  r.leads.forEach(l => {
+    tb.innerHTML += `
+      <tr>
+        <td>${l["Lead ID"] || ""}</td>
+        <td>${l["Customer Name"] || ""}</td>
+        <td>${l["Mobile Number"] || ""}</td>
+        <td>${l["Current Status"] || ""}</td>
+        <td>${formatDate_(l["Next Follow-up Date"])}</td>
+      </tr>`;
+  });
+}
+
+function formatDate_(v) {
+  if (!v) return "";
+  // Apps Script returns Date objects as strings sometimes
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString();
+}
+</script>
+
+</body>
+</html>
