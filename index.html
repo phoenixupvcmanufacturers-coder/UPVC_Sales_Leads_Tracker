@@ -130,9 +130,11 @@ async function apiPost(action, body) {
 
   const res = await fetch(url.toString(), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    // IMPORTANT: text/plain avoids CORS preflight for Apps Script
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(body)
   });
+
   return res.json();
 }
 
